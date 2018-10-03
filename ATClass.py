@@ -34,28 +34,48 @@ class AT:
 
 	def Recover(self,cum):
 		
-		def Rec(cum1):
-			DD=Drawdown(cum1)-1
-			Allpeakper=cum1.groupby(np.maximum.accumulate(cum1)).min()
-			Allpeakdates=cum1.index[cum1.isin(Allpeakper)]
-			peakper = Allpeakper[Allpeakper != Allpeakper.index]
-			DDper=DD[cum1.isin(peakper)]
-			DDperlen=cum1.groupby(np.maximum.accumulate(cum1)).count()[Allpeakper != Allpeakper.index]
-			DDtroughdates= DDper.index
-			DDstartdates=pd.Series(cum1.index[cum1.isin(cum1.groupby(np.maximum.accumulate(cum1)).first())][Allpeakper != Allpeakper.index],index=DDper.index)
-			DDenddates=pd.Series(cum1.index[cum1.isin(cum1.groupby(np.maximum.accumulate(cum1)).last())][Allpeakper != Allpeakper.index],index=DDper.index)
-			Allres=pd.DataFrame([DDper.values,DDperlen.values,DDper.index.date,DDstartdates.apply(lambda x:x.date()).values,DDenddates.apply(lambda x:x.date()).values],index=[cum1.name+" DD",cum1.name+" Length",cum1.name+" Trough Date",cum1.name+" Start",cum1.name+" End"]).T
-			#zeromult=np.where(DD==1,0,1)
-			#cumrec=np.cumsum(zeromult)
-			#timetorec=cumrec*zeromult
-			return Allres
+          def Rec(cum1):
+              #Drawdown profile for entire price series
+              DD = Drawdown(cum1)-1
+              #Max price and peak date (first occurance within group) (grouped by accumulating maximum)
+              Allpeakper1 = cum1.loc[cum1.groupby(np.maximum.accumulate(cum1)).idxmax()]
+              #Min price and trough date (grouped by accumulating maximum)
+              Allpeakper2 = cum1.loc[cum1.groupby(np.maximum.accumulate(cum1)).idxmin()]     
+              #Min price and trough date (removing dates which feature on min and max list)        
+              Peakper = Allpeakper2[Allpeakper2.index != Allpeakper1.index]
+              #first date for each group, indexed by accumulating maximum
+              Allstartdates = cum1.groupby(np.maximum.accumulate(cum1)).apply(lambda x: x.first_valid_index())
+              #first dates, only keeping dates wehere max price != min price
+              DDstartdates =  Allstartdates[Allstartdates.index != Allpeakper2]
+              #end date for each group, indexed by accumulating maximum
+              Allenddates = cum1.groupby(np.maximum.accumulate(cum1)).apply(lambda x: x.last_valid_index())
+              #end date, only keeping dates wehere max price != min price
+              DDenddates =  Allenddates[Allenddates.index != Allpeakper2]
+              #Drawdown value on trough dates
+              DDper = DD[Peakper.index]
+              #length of all groups
+              AllDDperlen = cum1.groupby(np.maximum.accumulate(cum1)).count()
+              #DD length calculated as group count minus one. Only keeping periods where max != min
+              DDperlen = AllDDperlen[AllDDperlen.index != Allpeakper2]-1
+              #Results table
+              Allres = pd.DataFrame(
+                                    [
+                                    DDper.values,DDperlen.values,DDper.index.date,
+                                    DDstartdates.dt.date,DDenddates.dt.date
+                                    ],
+                                    index=
+                                    [
+                                    "DD","DD Length","Trough Date",
+                                    "Start Date","End Date"
+                                    ]
+                                    ).T
+              return Allres
 		
-		if cum.ndim > 1:
-			Recs= pd.concat([Rec(cum[x]) for x in cum.columns],axis=1)
-		else:
-			Recs=Rec(cum)
-		
-		return Recs
+              if cum.ndim > 1:
+                  Recs= pd.concat([Rec(cum[x]) for x in cum.columns],axis=1)
+              else:
+                  Recs=Rec(cum)
+              return Recs
 		
 	def All(self,ret):
 		Allcum=self.cumulative(ret)
