@@ -35,6 +35,7 @@ class AT:
 	def Recover(self,cum):
 		
           def Rec(cum1):
+		  #Test line
               #Drawdown profile for entire price series
               DD = Drawdown(cum1)-1
               #Max price and peak date (first occurance within group) (grouped by accumulating maximum)
